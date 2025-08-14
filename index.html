@@ -1,0 +1,113 @@
+<html>
+<head>
+	<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litegraph.js/css/litegraph.css">
+	<script src="https://cdn.jsdelivr.net/npm/litegraph.js/build/litegraph.min.js"></script>
+</head>
+<body style="width:100%; height:100%; margin:0;">
+<canvas id="mycanvas" style="border: 1px solid; width:1024px; height:720px;"></canvas>
+<script>
+// Handle high DPI scaling
+const canvasEl = document.getElementById("mycanvas");
+const ctx = canvasEl.getContext("2d");
+const dpr = window.devicePixelRatio || 1;
+
+// Set internal resolution to match device pixel ratio
+canvasEl.width = canvasEl.clientWidth * dpr;
+canvasEl.height = canvasEl.clientHeight * dpr;
+ctx.scale(dpr, dpr);
+
+function deepClone(obj) {
+    return JSON.parse(JSON.stringify(obj));
+}
+
+// Simple deep equality
+function deepEqual(a, b) {
+    return JSON.stringify(a) === JSON.stringify(b);
+}
+
+class LGraphPro extends LGraph {
+  constructor() {
+    super();
+    this._graph_cache = {};
+  }
+
+  emit(...args) {
+
+
+}
+
+  change() {
+    super.change();
+    this.emit("change");
+    this.checkGraphChange();
+  }
+
+  connectionChange(node) {
+    if (super.connectionChange) super.connectionChange(node);
+    this.emit("connection_change", node);
+    this.checkGraphChange();
+  }
+
+  serializeDeep(options = {}) {
+    const graph_obj = this.serialize();
+    graph_obj.nodes.sort((a, b) => a.id - b.id);
+
+    if (options.skip_inputs) {
+      graph_obj.nodes.forEach(x => (x.inputs = []));
+    }
+    if (options.skip_outputs) {
+      graph_obj.nodes.forEach(x => (x.outputs = []));
+    }
+    if (options.skip_properties) {
+      graph_obj.nodes.forEach(x => (x.properties = {}));
+    }
+    if (options.skip_links) {
+      graph_obj.links = [];
+    }
+    if (options.skip_nodes) {
+      graph_obj.nodes = [];
+    }
+
+    return deepClone(graph_obj); // Make sure cloneDeep is available
+  }
+
+  checkGraphChange() {
+    const graph_obj = this.serializeDeep({
+      skip_inputs: true,
+      skip_outputs: true,
+      skip_properties: true,
+    });
+
+    if (deepEqual(graph_obj, this._graph_cache)) {
+      return;
+    }
+
+    this._graph_cache = graph_obj;
+    if (this.events) {
+      this.events.emit("graph_change", this.serializeDeep()); 
+    }
+    console.log(this.serialize())
+
+  }
+}
+
+
+// Create the graph and canvas
+var graph = new LGraphPro();
+var canvas = new LGraphCanvas("#mycanvas", graph);
+
+// Define and wrap a sum node
+function sum(a, b) { return a + b; }
+LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number", "Number"], "Number");
+
+// Add the node to the graph
+var sumNode = LiteGraph.createNode("math/sum");
+sumNode.pos = [200, 200];
+graph.add(sumNode);
+
+
+// Start rendering
+graph.start();
+</script> 
+</body>
+</html>

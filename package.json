@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "litegraph.js": "^0.7.18"
+  }
+}
