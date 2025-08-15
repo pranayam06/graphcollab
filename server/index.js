@@ -1,42 +1,53 @@
-import { createServer } from "http"
-import { Server } from "socket.io"
+import { createServer } from "http";
+import { Server } from "socket.io";
 
-const httpServer = createServer()
+
+const httpServer = createServer();
 const io = new Server(httpServer, {
-    cors: {
-        origin: [
-            "http://127.0.0.1:5500",
-            "http://127.0.0.1:5501",
-            "http://localhost:5500",
-            "http://localhost:5501"
-        ],
-        methods: ["GET", "POST"]
-    }
+  cors: { origin: "*" }
 });
 
+// Track collaborators per room in-memory (optional, Redis can also store this)
+const roomUsers = {};
+const roomGraphs = {}
 
-let collaborators = []
+io.on("connection", (socket) => { 
+  console.log(`Client connected: ${socket.id}`);
 
-io.on('connection', socket => {   
-    let id = (socket.id).slice(0, 5)
-    collaborators.push(id)   
-    console.log(`User: ${socket.id} connected`)   
-    console.log(id)
+  socket.on("joinRoom", ({ user, room }) => { 
+    console.log(`${user} joined room ${room}`)
+    socket.join(room); 
+    socket.data.room = room;
+    socket.data.user = user;
+    if (!roomUsers[room]) {
+        roomUsers[room] = new Set(); 
+    }
+    roomUsers[room].add(user); 
+    // render room
+    // TO DO : update initial graph
+    if (roomGraphs[room]) {
+        socket.emit("graphState", roomGraphs[room]);
+    }
+    // else: first change takes initial state NO WE NEED INITIAL STATE
 
-    socket.on("disconnect", (reason) => { 
-        var index = collaborators.indexOf(id)
-        collaborators.splice(index, 1) 
-        io.emit("rerender collaborators", collaborators)
-    })
-    
-    //io.emit("rerender collaborators" , collaborators)
+    // Send collaborators list to everyone in the room
+    io.to(room).emit("collaborators", [...roomUsers[room]]);
+  });
 
-    socket.on('message', data => {  
-        console.log(data)
-        
-        io.emit('message', data)
+  socket.on("message", ({ user, room, graph }) => { 
+    roomGraphs[room] = graph
+    socket.to(room).emit("message", { user, graph });
+  });
 
-    })
-} ) 
+  socket.on("disconnecting", () => {
+    const room = socket.data.room;
+  if (!room) return; // socket never joined a room
 
-httpServer.listen(3500, () => console.log("listening on port 3500"));
+  roomUsers[room].delete(socket.data.user);
+  io.to(room).emit("collaborators", { roomId: room, users: [...roomUsers[room]] });
+  });
+});
+
+httpServer.listen(3500, () => {
+  console.log("Server running on port 3500");
+});

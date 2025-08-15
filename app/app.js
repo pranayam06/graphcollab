@@ -1,42 +1,46 @@
-const socket = io('ws://localhost:3500')  
+const socket = io('ws://localhost:3500');
 
-const userVal = document.getElementById('userId').value.trim()
-const roomVal = document.getElementById('roomId').value.trim()
+document.getElementById("joinRoomBtn").addEventListener("click", () => {
+    const userVal = document.getElementById('userId').value.trim();
+    const roomVal = document.getElementById('roomId').value.trim();
+    if (!userVal || !roomVal) { alert("Enter User ID and Room ID"); return; }
 
+    // Join the room
+    socket.emit("joinRoom", { user: userVal, room: roomVal });
 
+    // Store for later graph updates
+    socket.data = { user: userVal, room: roomVal };
 
-
-document.addEventListener("graphJSONUpdated", (e) => {
-    const json = e.detail; 
-    console.log("Received graph JSON:", json); 
-    socket.emit('message', { user: userVal, room: roomVal, graph: json })
+    // Optionally, show canvas now
+    //document.getElementById("mycanvas").style.display = "block";
 });
 
-/*
+// Listen for graph updates
+document.addEventListener("graphJSONUpdated", (e) => {
+    if (!socket.data) return; // not joined yet
+    const json = e.detail; 
+    socket.emit('message', { user: socket.data.user, room: socket.data.room, graph: json });
+});
 
-function updateValue(e) {
-    log.textContent = e.target.value; 
-    socket.emit('message', e.target.value);
-}
 
-*/
+// Receive updates
 socket.on("message", (data) => { 
-    console.log("socket message received", data)
-    update_graph(data.graph) // only the JSON
+    console.log("socket message received", data);
+    update_graph(data.graph);
+});
+
+socket.on("graphState", (graph) => {
+    update_graph(graph)
 })
 
-/*
-socket.on("rerender collaborators", (data) => {  
-    let list = document.getElementById("collaborators")   
-    list.innerHTML = ""; 
-
-
-    for (const col of data){ 
-        let newId = document.createElement("li")
-        newId.innerText = "User: " + col
-        list.appendChild(newId) 
-
+// Receive collaborator list
+socket.on("collaborators", (data) => {
+    const { users, roomId } = data;
+    const list = document.getElementById("collaborators");
+    list.innerHTML = "";
+    for (const user of users) {
+        const li = document.createElement("li");
+        li.innerText = `User: ${user}`;
+        list.appendChild(li);
     }
-}
-)
-*/
+});

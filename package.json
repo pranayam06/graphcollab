@@ -1,6 +1,8 @@
 {
   "dependencies": {
+    "@socket.io/redis-adapter": "^8.3.0",
     "io": "^1.5.6",
+    "ioredis": "^5.7.0",
     "litegraph.js": "^0.7.18",
     "socket.io": "^4.8.1"
   }

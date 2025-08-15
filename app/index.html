@@ -89,6 +89,9 @@ function update_graph(json) {
     // Apply remote JSON to the graph
     graph.configure(json);
 
+    console.log(json)
+    
+
     // Sync cache manually so future local edits are detected
     graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
 
