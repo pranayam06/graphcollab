@@ -1,0 +1,123 @@
+<html>
+<head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/litegraph.js/css/litegraph.css">
+  <script src="https://cdn.jsdelivr.net/npm/litegraph.js/build/litegraph.min.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <style>
+    body { margin:0; font-family: sans-serif; display:flex; flex-direction:column; height:100vh; }
+    #toolbar {
+      display:flex; align-items:center; padding:10px; background:#2c3e50; color:white; gap:10px;
+    }
+    #toolbar input, #toolbar button {
+      padding:5px 10px; border:none; border-radius:4px; font-size:14px;
+    }
+    #toolbar input { width:120px; }
+    #toolbar button { cursor:pointer; background:#3498db; color:white; }
+    #toolbar button:hover { background:#2980b9; }
+    #mycanvas { flex:1; border-top:1px solid #ccc; width:100%; }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <input id="userId" placeholder="User ID">
+    <input id="roomId" placeholder="Room ID">
+    <button id="joinRoomBtn">Join Room</button>
+  </div>
+  <canvas id="mycanvas"></canvas>
+
+<script>
+// High-DPI scaling
+const canvasEl = document.getElementById("mycanvas");
+const ctx = canvasEl.getContext("2d");
+const dpr = window.devicePixelRatio || 1;
+canvasEl.width = canvasEl.clientWidth * dpr;
+canvasEl.height = canvasEl.clientHeight * dpr;
+ctx.scale(dpr, dpr);
+
+function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
+function deepEqual(a,b) { return JSON.stringify(a)===JSON.stringify(b); } 
+
+let applyingRemoteUpdate = false;
+
+// Extend LGraph
+class LGraphPro extends LGraph {
+  constructor() { super(); this._graph_cache = {}; }
+  emit(...args){ 
+    if(this.events) this.events.emit(...args); }
+  change(){ 
+    super.change(); 
+    this.emit("change"); 
+    this.checkGraphChange(); 
+}
+  
+    connectionChange(node){ 
+        if(super.connectionChange) super.connectionChange(node); 
+        this.emit("connection_change", node); 
+        this.checkGraphChange(); 
+    }
+  
+    serializeDeep(options={}) {
+    const g=this.serialize();
+    g.nodes.sort((a,b)=>a.id-b.id);
+    if(options.skip_inputs) g.nodes.forEach(x=>x.inputs=[]);
+    if(options.skip_outputs) g.nodes.forEach(x=>x.outputs=[]);
+    if(options.skip_properties) g.nodes.forEach(x=>x.properties={});
+    if(options.skip_links) g.links=[];
+    if(options.skip_nodes) g.nodes=[];
+    return deepClone(g);
+  }
+  checkGraphChange() {
+    if (applyingRemoteUpdate) return;  // ignore remote updates
+    const g = this.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+    if (deepEqual(g, this._graph_cache)) return;
+    this._graph_cache = g;
+
+    this.emit("graph_change", this.serializeDeep());
+    document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
+  }
+
+}
+
+// Create graph
+var graph = new LGraphPro();
+var canvas = new LGraphCanvas("#mycanvas", graph); 
+
+function update_graph(json) {
+    // Temporarily block events
+    applyingRemoteUpdate = true;
+
+    // Apply remote JSON to the graph
+    graph.configure(json);
+
+    // Sync cache manually so future local edits are detected
+    graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+
+    applyingRemoteUpdate = false;
+}
+
+
+// Wrap sum node
+function sum(a,b){ return a+b; }
+LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number","Number"], "Number");
+
+// Add demo nodes
+var n1 = LiteGraph.createNode("math/sum"); n1.pos=[200,200]; graph.add(n1);
+var n2 = LiteGraph.createNode("math/sum"); n2.pos=[400,200]; graph.add(n2);
+
+graph.start(); 
+
+
+// --- BUTTONS ---
+
+document.getElementById("joinRoomBtn").addEventListener("click", ()=>{
+  const userId = document.getElementById("userId").value.trim();
+  const roomId = document.getElementById("roomId").value.trim();
+  if(!userId || !roomId) { alert("Enter User ID and Room ID"); return; }
+
+  alert(`Joined room "${roomId}" as user "${userId}"`);
+  // TODO: connect to WebSocket / Yjs for collaborative editing
+});
+
+</script>
+<script src="app.js"></script>
+</body></html>
