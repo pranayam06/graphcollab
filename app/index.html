@@ -8,13 +8,17 @@
     #toolbar {
       display:flex; align-items:center; padding:10px; background:#2c3e50; color:white; gap:10px;
     }
-    #toolbar input, #toolbar button {
-      padding:5px 10px; border:none; border-radius:4px; font-size:14px;
-    }
-    #toolbar input { width:120px; }
+    #toolbar {display:flex; align-items:center;
+  padding:15px;
+  background:#2c3e50; color:white;
+  gap:10px; height:60px;
+}
+#toolbar input, #toolbar button {
+  padding:7px 12px; border:none; border-radius:4px; font-size:14px;
+}
     #toolbar button { cursor:pointer; background:#3498db; color:white; }
     #toolbar button:hover { background:#2980b9; }
-    #mycanvas { flex:1; border-top:1px solid #ccc; width:100%; }
+    #mycanvas { flex:1; border-top:1px solid #ccc; width:100%; display: block; }
   </style>
 </head>
 <body>
@@ -23,6 +27,19 @@
     <input id="roomId" placeholder="Room ID">
     <button id="joinRoomBtn">Join Room</button>
   </div>
+  <div id="collaborators" style="
+  position:absolute;
+  top:0; right:0;
+  width:200px;
+  height:100%;
+  background:#ecf0f1;
+  padding:10px;
+  overflow-y:auto;
+  display:none;
+">
+  <ul style="list-style:none; padding:0; margin:0;" id="collaboratorsList">
+  </ul>
+</div>
   <canvas id="mycanvas"></canvas>
 
 <script>

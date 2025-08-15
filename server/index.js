@@ -12,6 +12,7 @@ const roomUsers = {};
 const roomGraphs = {}
 
 io.on("connection", (socket) => { 
+
   console.log(`Client connected: ${socket.id}`);
 
   socket.on("joinRoom", ({ user, room }) => { 
@@ -22,7 +23,9 @@ io.on("connection", (socket) => {
     if (!roomUsers[room]) {
         roomUsers[room] = new Set(); 
     }
-    roomUsers[room].add(user); 
+    roomUsers[room].add(user);  
+    console.log(roomUsers[room])
+
     // render room
     // TO DO : update initial graph
     if (roomGraphs[room]) {
@@ -30,8 +33,9 @@ io.on("connection", (socket) => {
     }
     // else: first change takes initial state NO WE NEED INITIAL STATE
 
-    // Send collaborators list to everyone in the room
-    io.to(room).emit("collaborators", [...roomUsers[room]]);
+    // Send collaborators list to everyone in the room 
+    console.log("right before emit collaborators")
+    io.to(room).emit("collaborators", [...roomUsers[room]]); 
   });
 
   socket.on("message", ({ user, room, graph }) => { 

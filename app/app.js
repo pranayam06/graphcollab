@@ -3,6 +3,9 @@ const socket = io('ws://localhost:3500');
 document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const userVal = document.getElementById('userId').value.trim();
     const roomVal = document.getElementById('roomId').value.trim();
+    //document.getElementById("mycanvas").style.display = "block";
+    document.getElementById("collaborators").style.display = "block";
+
     if (!userVal || !roomVal) { alert("Enter User ID and Room ID"); return; }
 
     // Join the room
@@ -12,6 +15,7 @@ document.getElementById("joinRoomBtn").addEventListener("click", () => {
     socket.data = { user: userVal, room: roomVal };
 
     // Optionally, show canvas now
+
     //document.getElementById("mycanvas").style.display = "block";
 });
 
@@ -34,9 +38,9 @@ socket.on("graphState", (graph) => {
 })
 
 // Receive collaborator list
-socket.on("collaborators", (data) => {
-    const { users, roomId } = data;
-    const list = document.getElementById("collaborators");
+socket.on("collaborators", (users) => {  
+    console.log("here")
+    const list = document.getElementById("collaboratorsList");
     list.innerHTML = "";
     for (const user of users) {
         const li = document.createElement("li");
@@ -44,3 +48,4 @@ socket.on("collaborators", (data) => {
         list.appendChild(li);
     }
 });
+
