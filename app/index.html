@@ -54,14 +54,22 @@
 </div>
   <canvas id="mycanvas"></canvas>
 
-<script>
+<script type="module"> 
+import * as Y from "https://esm.sh/yjs@13"
+
 // High-DPI scaling
 const canvasEl = document.getElementById("mycanvas");
 const ctx = canvasEl.getContext("2d");
 const dpr = window.devicePixelRatio || 1;
 canvasEl.width = canvasEl.clientWidth * dpr;
 canvasEl.height = canvasEl.clientHeight * dpr;
-ctx.scale(dpr, dpr);
+ctx.scale(dpr, dpr); 
+
+const ydoc = new Y.Doc();
+const ymap = ydoc.getMap("graph");
+let roomId = null;
+let userId = null;
+
 
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 function deepEqual(a,b) { return JSON.stringify(a)===JSON.stringify(b); } 
@@ -99,33 +107,80 @@ class LGraphPro extends LGraph {
     if (applyingRemoteUpdate) return;  // ignore remote updates
     const g = this.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
     if (deepEqual(g, this._graph_cache)) return;
-    this._graph_cache = g;
+    this._graph_cache = g; 
+    console.log("are we here chat");
 
-    this.emit("graph_change", this.serializeDeep());
-    document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
+    //this.emit("graph_change", this.serializeDeep()); 
+    console.log((userId));
+    if (!ydoc || !roomId || !userId) return; 
+    console.log((ydoc));
+    ymap.set("graph", this.serializeDeep());
+    const update = Array.from(Y.encodeStateAsUpdate(ydoc)); 
+    console.log("right before dispatching event");
+    document.dispatchEvent(new CustomEvent("graph-update", { detail: update }));
+    //listen_for_change(this.serializeDeep())
+    //document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
   }
 
 }
 
+
+
 // Create graph
 var graph = new LGraphPro();
 var canvas = new LGraphCanvas("#mycanvas", graph); 
+
+
+function listen_for_change(graphJSON) {
+  if (!ydoc || !roomId || !userId) return;
+
+  // Store the whole graph under a single key
+  ymap.set("graph", graphJSON);
+
+  // Encode incremental update
+  const update = Array.from(Y.encodeStateAsUpdate(ydoc));
+
+  // Send via Socket.io # move this somewhere else 
+  document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
+  socket.emit("graph-update", update);
+}
+
 
 function update_graph(json) {
     // Temporarily block events
     applyingRemoteUpdate = true;
 
     // Apply remote JSON to the graph
-    graph.configure(json);
+    graph.configure(json); 
+    // HERE UPDATE 
 
     console.log(json)
     
-
     // Sync cache manually so future local edits are detected
     graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
 
     applyingRemoteUpdate = false;
 }
+
+window.recieve_update = function(arr) {
+  // Apply the Yjs update
+  console.log("OMG WERE HERE")
+  console.log(typeof(arr))
+  const update = new Uint8Array(arr);
+  console.log(typeof(update))
+  Y.applyUpdate(ydoc, update);
+
+  // Get the latest graph JSON from Yjs
+  const graphJSON = ymap.get("graph");
+
+  if (graphJSON) {
+    // Update LiteGraph
+    applyingRemoteUpdate = true;
+    graph.configure(graphJSON);
+    graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+    applyingRemoteUpdate = false;
+  }
+};
 
 
 // Wrap sum node
@@ -136,20 +191,18 @@ LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number","Number"], "Number");
 var n1 = LiteGraph.createNode("math/sum"); n1.pos=[200,200]; graph.add(n1);
 var n2 = LiteGraph.createNode("math/sum"); n2.pos=[400,200]; graph.add(n2);
 
-graph.start(); 
 
 
 // --- BUTTONS ---
 
 document.getElementById("joinRoomBtn").addEventListener("click", ()=>{
-  const userId = document.getElementById("userId").value.trim();
-  const roomId = document.getElementById("roomId").value.trim();
+  userId = document.getElementById("userId").value.trim();
+  roomId = document.getElementById("roomId").value.trim();
   if(!userId || !roomId) { alert("Enter User ID and Room ID"); return; }
 
   alert(`You are now joining room ${roomId} as user ${userId}`);
   // TODO: connect to WebSocket / Yjs for collaborative editing
 });
-
 </script>
 <script src="app.js"></script>
 </body></html>

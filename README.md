@@ -7,10 +7,12 @@
 - set up one room 
 
 # friday 
-- rooms + redis
-- uuid 
+- rooms 
+- collaborators 
 
 # saturday 
+- redis 
+- crdts
 - version control 
 
 # sunday

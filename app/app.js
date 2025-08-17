@@ -26,12 +26,25 @@ document.addEventListener("graphJSONUpdated", (e) => {
     socket.emit('message', { user: socket.data.user, room: socket.data.room, graph: json });
 });
 
+document.addEventListener("graph-update", (e) => {
+    const update = e.detail; 
+    console.log("hello i got the update")
+    socket.emit("graph-update", Array.from(update)); // convert Uint8Array → plain array
+    console.log("oops error here")
+  });
+
 
 // Receive updates
 socket.on("message", (data) => { 
     console.log("socket message received", data);
     update_graph(data.graph);
-});
+}); 
+
+
+socket.on("graph-update", (update) => {
+    // Apply Yjs update 
+    window.recieve_update(update)
+  });
 
 socket.on("graphState", (graph) => {
     update_graph(graph)
