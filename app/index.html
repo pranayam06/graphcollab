@@ -13,6 +13,10 @@
   background:#2c3e50; color:white;
   gap:10px; height:60px;
 }
+#toolbar button {
+  z-index: 10;
+  position: relative; /* keep it above absolute panels */
+}
 #toolbar input, #toolbar button {
   padding:7px 12px; border:none; border-radius:4px; font-size:14px;
 }
@@ -34,7 +38,9 @@
   <div id="toolbar">
     <input id="userId" placeholder="User ID">
     <input id="roomId" placeholder="Room ID">
-    <button id="joinRoomBtn">Join Room</button>
+    <button id="joinRoomBtn">Join Room</button> 
+    <button id="historyBtn" style="margin-left: 700px;">History</button>
+
   </div>
   <div id="collaborators" style="
   position:absolute;
@@ -51,6 +57,20 @@
 </h3>
   <ul style="list-style:none; padding:0; margin:0;" id="collaboratorsList">
   </ul>
+</div>
+<div id="historyPanel" style="
+  position:absolute;
+  top:0; right:210px;
+  width:300px;
+  height:100%;
+  background:#f5f5f5;
+  padding:10px;
+  overflow-y:auto;
+  display:none;
+  border-left:1px solid #ccc;
+"> 
+  <h3>Room History</h3>
+  <ul id="historyList" style="list-style:none; padding:0; margin:0;"></ul>
 </div>
   <canvas id="mycanvas"></canvas>
 
@@ -180,8 +200,17 @@ window.recieve_update = function(arr) {
     graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
     applyingRemoteUpdate = false;
   }
-};
+}; 
 
+ window.temp_remote_update = function(updates) {
+    applyingRemoteUpdate = true;
+    for (const u of updates) {
+      Y.applyUpdate(ydoc, new Uint8Array(u));
+    }
+    const graphJSON = ymap.get("graph");
+    update_graph(graphJSON);
+    applyingRemoteUpdate = false;
+  } 
 
 // Wrap sum node
 function sum(a,b){ return a+b; }
@@ -190,6 +219,38 @@ LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number","Number"], "Number");
 // Add demo nodes
 var n1 = LiteGraph.createNode("math/sum"); n1.pos=[200,200]; graph.add(n1);
 var n2 = LiteGraph.createNode("math/sum"); n2.pos=[400,200]; graph.add(n2);
+
+function setGraphReadOnly(graph, readOnly) {
+  graph._nodes.forEach(node => node.flags.read_only = readOnly);
+}
+
+const historyBtn = document.getElementById("historyBtn");
+  const historyPanel = document.getElementById("historyPanel");
+  const historyList = document.getElementById("historyList");
+
+  // Toggle panel
+  historyBtn.addEventListener("click", () => {
+    historyPanel.style.display =
+      historyPanel.style.display === "none" ? "block" : "none"; 
+      document.dispatchEvent(new CustomEvent("historyRequest", {})) 
+      console.log("history button pressed")  
+      setGraphReadOnly(graph, true)
+  });
+
+  // Function to render versions
+  window.renderHistory = function(versions) {
+    historyList.innerHTML = "";
+    versions.forEach((version, index) => {
+      const li = document.createElement("li");
+      li.textContent = `Version ${index + 1} (${new Date(version.timestamp).toLocaleTimeString()})`;
+      li.style.cursor = "pointer";
+      li.onclick = () => {
+        console.log("Requesting version", index);
+        document.dispatchEvent(new CustomEvent("loadVersion", { detail: index }));
+      };
+      historyList.appendChild(li);
+    });
+  }
 
 
 

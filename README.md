@@ -11,13 +11,17 @@
 - collaborators 
 
 # saturday 
-- redis 
 - crdts
 - version control 
 
 # sunday
+- redis 
+- version control 
+- offline option
+
+# monday
 - docker run 
 - slides 
 
-# monday - tuesday: 
-prep 
+# tuesday: 
+prep a lot 

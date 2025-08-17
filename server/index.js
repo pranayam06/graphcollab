@@ -9,7 +9,9 @@ const io = new Server(httpServer, {
 
 // Track collaborators per room in-memory (optional, Redis can also store this)
 const roomUsers = {};
-const roomGraphs = {} 
+const roomGraphs = {};
+const roomHistory = {}; // roomId -> array of { timestamp, snapshot, updates }
+const SNAPSHOT_INTERVAL = 10; // store a snapshot every N updates
 const starterJSON = {
     "last_node_id": 2,
     "last_link_id": 0,
@@ -109,6 +111,10 @@ io.on("connection", (socket) => {
     roomUsers[room].add(user);  
     console.log(roomUsers[room])
 
+    if (!roomHistory[room]) {
+        roomHistory[room] = [];   // ✅ ensure history exists
+      }
+
 
     if (!roomGraphs[room]) {
         roomGraphs[room] = new Y.Doc();
@@ -129,24 +135,88 @@ io.on("connection", (socket) => {
     // Send collaborators list to everyone in the room 
     console.log("right before emit collaborators")
     io.to(room).emit("collaborators", [...roomUsers[room]]); 
-  });
+  }); 
+
+  /*
 
   socket.on("message", ({ user, room, graph }) => { 
     roomGraphs[room] = graph
     socket.to(room).emit("message", { user, graph });
-  }); 
+  });  */
 
   socket.on("graph-update", (update) => {
-    console.log("UPDATE RECEIVED ON BACKEND");
+    const room = socket.data.room;
+    if (!room) return;
   
-    // Convert back into Uint8Array
+    const ydoc = roomGraphs[room];
     const binaryUpdate = new Uint8Array(update);
-  
-    const ydoc = roomGraphs[socket.data.room];
     Y.applyUpdate(ydoc, binaryUpdate);
   
+    // Initialize history
+    if (!roomHistory[room]) roomHistory[room] = [];
+  
+    // Store snapshot every N updates
+    const history = roomHistory[room];
+    const nextVersion = history.length;
+    const snapshot = (nextVersion % SNAPSHOT_INTERVAL === 0) 
+        ? ydoc.getMap("graph").get("graph") 
+        : null;
+  
+    history.push({
+      snapshot,
+      updates: [binaryUpdate],
+      timestamp: Date.now()
+    });
+  
+    // If not snapshot version, append update to previous snapshot entry
+    if (!snapshot && nextVersion > 0) {
+      history[nextVersion - 1].updates.push(binaryUpdate);
+    }
+  
     // Broadcast to other clients
-    socket.to(socket.data.room).emit("graph-update", update);
+    socket.to(room).emit("graph-update", update);
+  }); 
+
+
+  socket.on("historyRequest", () => { 
+    console.log("history requested");
+    const history = roomHistory[socket.data.room]
+    const list = history.map((h, idx) => ({
+      index: idx,
+      timestamp: h.timestamp
+    }));
+    socket.emit("historyList", list);
+  });
+
+  socket.on("loadVersion", ({ room, version }) => {
+    const history = roomHistory[room];
+    if (!history) return;
+  
+    const N = SNAPSHOT_INTERVAL; // e.g., 10
+    const snapshotIndex = Math.floor(version / N) * N;
+    const snapshotEntry = history[snapshotIndex];
+  
+    const updatesToSend = [];
+  
+    // start with snapshot as a Y.Doc state
+    const ydoc = new Y.Doc();
+    if (snapshotEntry.snapshot) {
+      ymap = ydoc.getMap("graph");
+      ymap.set("graph", snapshotEntry.snapshot);
+    }
+  
+    // apply incremental updates after snapshot up to target version
+    for (let i = snapshotIndex + 1; i <= version; i++) {
+      updatesToSend.push(...history[i].updates);
+    }
+  
+    // Encode snapshot + incremental updates for client
+    const fullUpdates = [
+      Array.from(Y.encodeStateAsUpdate(ydoc)),
+      ...updatesToSend
+    ];
+  
+    socket.emit("loadVersionResponse", fullUpdates);
   });
   
 
@@ -162,3 +232,5 @@ io.on("connection", (socket) => {
 httpServer.listen(3500, () => {
   console.log("Server running on port 3500");
 });
+
+  

@@ -26,6 +26,17 @@ document.addEventListener("graphJSONUpdated", (e) => {
     socket.emit('message', { user: socket.data.user, room: socket.data.room, graph: json });
 });
 
+document.addEventListener("loadVersion", (e) => {
+    const idx = e.detail
+    console.log("loading version ", idx) 
+    socket.emit('loadVersion', idx)
+
+});
+
+document.addEventListener("historyRequest", (e) => {
+    socket.emit('historyRequest')
+}) 
+
 document.addEventListener("graph-update", (e) => {
     const update = e.detail; 
     console.log("hello i got the update")
@@ -60,5 +71,22 @@ socket.on("collaborators", (users) => {
         li.innerText = `User: ${user}`;
         list.appendChild(li);
     }
-});
+}); 
 
+
+
+function loadVersion(versionIndex) {
+    if (!socket.data || !roomId) return;
+    socket.emit("loadVersion", { room: roomId, version: versionIndex });
+  }
+  
+  // Listen for server response
+  socket.on("updateVersionResponse", (updates) => {
+    window.temp_remote_update(updates);
+  });
+   
+  socket.on("historyList", (list) => {
+    window.renderHistory(list);
+  })
+
+  
