@@ -81,7 +81,7 @@ function loadVersion(versionIndex) {
   }
   
   // Listen for server response
-  socket.on("updateVersionResponse", (updates) => {
+  socket.on("loadVersionResponse", (updates) => {
     window.temp_remote_update(updates);
   });
    

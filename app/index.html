@@ -72,7 +72,15 @@
   <h3>Room History</h3>
   <ul id="historyList" style="list-style:none; padding:0; margin:0;"></ul>
 </div>
-  <canvas id="mycanvas"></canvas>
+  <canvas id="mycanvas"></canvas> 
+  <div id="overlay" style="
+  display:none;
+  position:absolute;
+  top:0; left:0;
+  width:100%;
+  height:100%;
+  z-index:999;
+"></div>
 
 <script type="module"> 
 import * as Y from "https://esm.sh/yjs@13"
@@ -220,8 +228,14 @@ LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number","Number"], "Number");
 var n1 = LiteGraph.createNode("math/sum"); n1.pos=[200,200]; graph.add(n1);
 var n2 = LiteGraph.createNode("math/sum"); n2.pos=[400,200]; graph.add(n2);
 
-function setGraphReadOnly(graph, readOnly) {
-  graph._nodes.forEach(node => node.flags.read_only = readOnly);
+function freezeGraph() {
+  const overlay = document.getElementById("overlay");
+  overlay.style.display = "block";
+}
+
+function unfreezeGraph(){ 
+  const overlay = document.getElementById("overlay");
+  overlay.style.display = "none";
 }
 
 const historyBtn = document.getElementById("historyBtn");
@@ -233,8 +247,8 @@ const historyBtn = document.getElementById("historyBtn");
     historyPanel.style.display =
       historyPanel.style.display === "none" ? "block" : "none"; 
       document.dispatchEvent(new CustomEvent("historyRequest", {})) 
-      console.log("history button pressed")  
-      setGraphReadOnly(graph, true)
+      console.log("history button pressed");
+      // freezeGraph()  
   });
 
   // Function to render versions

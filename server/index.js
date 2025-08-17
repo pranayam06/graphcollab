@@ -187,10 +187,15 @@ io.on("connection", (socket) => {
     }));
     socket.emit("historyList", list);
   });
+ 
+  socket.on("loadVersion", (version) => { 
+    console.log("we r here"); 
+    const room = socket.data.room
+    const history = roomHistory[room]; 
 
-  socket.on("loadVersion", ({ room, version }) => {
-    const history = roomHistory[room];
     if (!history) return;
+
+    console.log("oh now here");
   
     const N = SNAPSHOT_INTERVAL; // e.g., 10
     const snapshotIndex = Math.floor(version / N) * N;
@@ -200,6 +205,7 @@ io.on("connection", (socket) => {
   
     // start with snapshot as a Y.Doc state
     const ydoc = new Y.Doc();
+    let ymap;
     if (snapshotEntry.snapshot) {
       ymap = ydoc.getMap("graph");
       ymap.set("graph", snapshotEntry.snapshot);
@@ -215,7 +221,7 @@ io.on("connection", (socket) => {
       Array.from(Y.encodeStateAsUpdate(ydoc)),
       ...updatesToSend
     ];
-  
+    console.log("sending full updatessss")
     socket.emit("loadVersionResponse", fullUpdates);
   });
   
