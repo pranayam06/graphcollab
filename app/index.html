@@ -209,16 +209,21 @@ window.recieve_update = function(arr) {
     applyingRemoteUpdate = false;
   }
 }; 
+window.temp_remote_update = function(json) {
+  // Temporarily block events
+  applyingRemoteUpdate = true;
 
- window.temp_remote_update = function(updates) {
-    applyingRemoteUpdate = true;
-    for (const u of updates) {
-      Y.applyUpdate(ydoc, new Uint8Array(u));
-    }
-    const graphJSON = ymap.get("graph");
-    update_graph(graphJSON);
-    applyingRemoteUpdate = false;
-  } 
+// Apply remote JSON to the graph
+graph.configure(json); 
+// HERE UPDATE 
+
+console.log(json)
+
+// Sync cache manually so future local edits are detected
+graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+
+applyingRemoteUpdate = false;
+};
 
 // Wrap sum node
 function sum(a,b){ return a+b; }

@@ -75,18 +75,12 @@ socket.on("collaborators", (users) => {
 
 
 
-function loadVersion(versionIndex) {
-    if (!socket.data || !roomId) return;
-    socket.emit("loadVersion", { room: roomId, version: versionIndex });
-  }
-  
-  // Listen for server response
-  socket.on("loadVersionResponse", (updates) => {
-    window.temp_remote_update(updates);
+socket.on("loadVersionResponse", ({ version, graph, timestamp }) => {
+    console.log("Loaded version", version, "from", new Date(timestamp));
+    
+    window.temp_remote_update(graph);
   });
-   
+
   socket.on("historyList", (list) => {
     window.renderHistory(list);
   })
-
-  
