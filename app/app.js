@@ -44,7 +44,9 @@ document.addEventListener("historyRequest", (e) => {
 
 document.addEventListener("restore-version", (e) => {
     const index = e.detail 
-    socket.emit("restore-version", index);
+    console.log("heres the index", index)
+    socket.emit("restore-version", index); 
+    console.log("restoring version ", index);
 })
 document.addEventListener("graph-update", (e) => {
     const update = e.detail; 
@@ -97,7 +99,7 @@ socket.on("loadVersionResponse", ({ version, graph, timestamp }) => {
     window.renderHistory(list);
   })
 
-  socket.on("restoreVersionBroadcast", ({ graph, version, timestamp }) => {
-    console.log("Version", version, "restored globally from", new Date(timestamp));
-    window.restore(graph)
-  });
+socket.on("restoreVersionBroadcast", ({ graph, version, timestamp }) => {
+  console.log("Version", version, "restored globally from", new Date(timestamp));
+  window.restore(graph)
+});

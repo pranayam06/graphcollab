@@ -217,13 +217,27 @@ io.on("connection", (socket) => {
     });
   });
 
-  socket.on("restore-version", (index) => {
-    const room = socket.data.room;
+  socket.on("restore-version", (index) => {  
+    console.log(index)
+    console.log("RESTORINGGGG we r here")
+    const room = socket.data.room; 
+    console.log("cp1")
     if (!room || !roomHistory[room]) return;
-  
+    console.log("cp2") 
+    console.log(index)
+
     const history = roomHistory[room];
-    const versionData = history[index];
+    const versionData = history[index]; 
+    console.log("cp3")
+
     if (!versionData) return;
+    console.log("cp4")
+
+    roomGraphs[room] = new Y.Doc();
+    const ydoc = roomGraphs[room];
+    const ymap = ydoc.getMap("graph");
+    ymap.set("graph", JSON.parse(JSON.stringify(versionData.snapshot))); // deep copy  
+
   
     console.log(`Restoring version ${index} in room ${room}`);
   
@@ -240,7 +254,7 @@ io.on("connection", (socket) => {
       timestamp: Date.now(),
     });
   
-    // 3. Broadcast restored graph
+    // 3. Broadcast restored graph 
     io.to(room).emit("restoreVersionBroadcast", {
       graph: versionData.snapshot,
       version: history.length - 1, // the new appended index

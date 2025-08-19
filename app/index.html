@@ -273,10 +273,11 @@ const restoreButton = document.getElementById("restore");
 
 restoreButton.addEventListener("click", () => {  
 
-  if (currentPreview!= null) {
+  if (currentPreview!= null) { 
+    console.log(currentPreview);
     console.log("okkk restoringg")
     historyPanel.style.display = "none";
-    document.dispatchEvent(new CustomEvent("restore-version", {currentPreview}))  
+    document.dispatchEvent(new CustomEvent("restore-version", { detail: currentPreview }))  
   }
 
 })
@@ -297,12 +298,21 @@ restoreButton.addEventListener("click", () => {
     });
   }
 
-window.restore = function(graph) {
-  applyingRemoteUpdate = true
-  editor.graph.clear()
-  editor.graph.configure(graph)
-  applyingRemoteUpdate = false
-}
+  window.restore = function(graphJSON) {
+  applyingRemoteUpdate = true;
+  
+  // Update LiteGraph
+  canvas.graph.clear();
+  canvas.graph.configure(graphJSON);
+
+  // Sync Yjs
+  ymap.set("graph", deepClone(graphJSON));
+
+  // Update cache so edits are detected
+  canvas.graph._graph_cache = canvas.graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+
+  applyingRemoteUpdate = false;
+};
 
 
 // --- BUTTONS ---
