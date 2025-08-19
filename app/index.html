@@ -69,6 +69,7 @@
   display:none;
   border-left:1px solid #ccc;
 "> 
+<button id="restore" style="margin-bottom:10px;">Restore Version</button>
   <h3>Room History</h3>
   <ul id="historyList" style="list-style:none; padding:0; margin:0;"></ul>
 </div>
@@ -97,6 +98,9 @@ const ydoc = new Y.Doc();
 const ymap = ydoc.getMap("graph");
 let roomId = null;
 let userId = null;
+let viewingHistory = false;       // when true, do not send/accept live updates
+let currentPreview = null; // stores the version you're previewing
+
 
 
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
@@ -132,7 +136,8 @@ class LGraphPro extends LGraph {
     return deepClone(g);
   }
   checkGraphChange() {
-    if (applyingRemoteUpdate) return;  // ignore remote updates
+    if (applyingRemoteUpdate) return;
+    if (viewingHistory) return; // don't send edits while reviewing history
     const g = this.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
     if (deepEqual(g, this._graph_cache)) return;
     this._graph_cache = g; 
@@ -246,15 +251,35 @@ function unfreezeGraph(){
 const historyBtn = document.getElementById("historyBtn");
   const historyPanel = document.getElementById("historyPanel");
   const historyList = document.getElementById("historyList");
-
+const restoreButton = document.getElementById("restore");
   // Toggle panel
   historyBtn.addEventListener("click", () => {
-    historyPanel.style.display =
-      historyPanel.style.display === "none" ? "block" : "none"; 
-      document.dispatchEvent(new CustomEvent("historyRequest", {})) 
+    if (historyPanel.style.display == "block") {
+      // if we're closing the history, reverting to current state 
+      let currentPreview = null
+      historyPanel.style.display = "none";
+      console.log("historybutton unpressed")
+      document.dispatchEvent(new CustomEvent("getCurrent", {})) 
+    }
+    else {
+      historyPanel.style.display = "block"; 
+
+      document.dispatchEvent(new CustomEvent("historyRequest", {}))  
+      
       console.log("history button pressed");
+  }
       // freezeGraph()  
   });
+
+restoreButton.addEventListener("click", () => {  
+
+  if (currentPreview!= null) {
+    console.log("okkk restoringg")
+    historyPanel.style.display = "none";
+    document.dispatchEvent(new CustomEvent("restore-version", {currentPreview}))  
+  }
+
+})
 
   // Function to render versions
   window.renderHistory = function(versions) {
@@ -264,13 +289,20 @@ const historyBtn = document.getElementById("historyBtn");
       li.textContent = `Version ${index + 1} (${new Date(version.timestamp).toLocaleTimeString()})`;
       li.style.cursor = "pointer";
       li.onclick = () => {
-        console.log("Requesting version", index);
+        console.log("Requesting version", index); 
+        currentPreview = index
         document.dispatchEvent(new CustomEvent("loadVersion", { detail: index }));
       };
       historyList.appendChild(li);
     });
   }
 
+window.restore = function(graph) {
+  applyingRemoteUpdate = true
+  editor.graph.clear()
+  editor.graph.configure(graph)
+  applyingRemoteUpdate = false
+}
 
 
 // --- BUTTONS ---

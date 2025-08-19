@@ -204,8 +204,8 @@ io.on("connection", (socket) => {
     if (!history || version >= history.length) return;
   
     // Find the closest snapshot at or before the requested version
-    const snapshotIndex = Math.floor(version / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL;
-    const snapshotEntry = history[snapshotIndex];
+    //const snapshotIndex = Math.floor(version / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL;
+    const snapshotEntry = history[version];
   
     if (!snapshotEntry || !snapshotEntry.snapshot) return;
   
@@ -216,7 +216,51 @@ io.on("connection", (socket) => {
       timestamp: snapshotEntry.timestamp,
     });
   });
+
+  socket.on("restore-version", (index) => {
+    const room = socket.data.room;
+    if (!room || !roomHistory[room]) return;
   
+    const history = roomHistory[room];
+    const versionData = history[index];
+    if (!versionData) return;
+  
+    console.log(`Restoring version ${index} in room ${room}`);
+  
+    // 1. Save the *current* latest graph as its own version before overwriting
+    const currentLatest = history[history.length - 1];
+    history.push({
+      snapshot: currentLatest.snapshot, // old state
+      timestamp: Date.now(),
+    });
+  
+    // 2. Append the restored version as a *new* entry
+    history.push({
+      snapshot: versionData.snapshot,
+      timestamp: Date.now(),
+    });
+  
+    // 3. Broadcast restored graph
+    io.to(room).emit("restoreVersionBroadcast", {
+      graph: versionData.snapshot,
+      version: history.length - 1, // the new appended index
+      timestamp: Date.now(),
+    });
+  });
+  
+  
+  socket.on("current-state", () => {
+    const room = socket.data.room
+    const ydoc = roomGraphs[room];
+    // Populate initial graph if empty
+    const ymap = ydoc.getMap("graph");
+    if (!ymap.has("graph")) {
+      ymap.set("graph", starterJSON);
+    }      
+  
+    const fullUpdate = Array.from(Y.encodeStateAsUpdate(ydoc)); 
+
+    socket.emit("graph-current-state",  fullUpdate);  })
   
 
   socket.on("disconnecting", () => {

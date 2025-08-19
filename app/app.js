@@ -26,6 +26,11 @@ document.addEventListener("graphJSONUpdated", (e) => {
     socket.emit('message', { user: socket.data.user, room: socket.data.room, graph: json });
 });
 
+document.addEventListener("getCurrent", (e) => { 
+    console.log("looking for the current state")
+    socket.emit("current-state");
+})
+
 document.addEventListener("loadVersion", (e) => {
     const idx = e.detail
     console.log("loading version ", idx) 
@@ -37,6 +42,10 @@ document.addEventListener("historyRequest", (e) => {
     socket.emit('historyRequest')
 }) 
 
+document.addEventListener("restore-version", (e) => {
+    const index = e.detail 
+    socket.emit("restore-version", index);
+})
 document.addEventListener("graph-update", (e) => {
     const update = e.detail; 
     console.log("hello i got the update")
@@ -73,6 +82,9 @@ socket.on("collaborators", (users) => {
     }
 }); 
 
+socket.on("graph-current-state", (update) => {
+    window.recieve_update(update)
+})
 
 
 socket.on("loadVersionResponse", ({ version, graph, timestamp }) => {
@@ -84,3 +96,8 @@ socket.on("loadVersionResponse", ({ version, graph, timestamp }) => {
   socket.on("historyList", (list) => {
     window.renderHistory(list);
   })
+
+  socket.on("restoreVersionBroadcast", ({ graph, version, timestamp }) => {
+    console.log("Version", version, "restored globally from", new Date(timestamp));
+    window.restore(graph)
+  });
