@@ -184,7 +184,7 @@ function update_graph(json) {
 }
 */
 
-// used for applying updates 1) recieving graph update and 2) recieving current version after viewing history
+// used for applying incremental updates 1) recieving graph update and 2) recieving current version after viewing history
 window.recieve_update = function(arr) {
   const update = new Uint8Array(arr);
   Y.applyUpdate(ydoc, update);
@@ -201,7 +201,7 @@ window.recieve_update = function(arr) {
   }
 }; 
 
-// given a json, applies remote update
+// given a json, applies remote (full graph)
 window.temp_remote_update = function(json) {
   applyingRemoteUpdate = true;
   graph.configure(json); 

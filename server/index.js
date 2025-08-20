@@ -162,13 +162,11 @@ io.on("connection", (socket) => {
         const graphMap = ydoc.getMap("graph");
         const graph = graphMap.get("graph"); // your JSON object
         const snapshot = JSON.parse(JSON.stringify(graph)); // deep copy
-
         history.push({
         snapshot,       // full graph JSON
         timestamp: Date.now(),
         });
     }
-
     // broadcast to other clients
     socket.to(room).emit("graph-update", update);
   }); 
