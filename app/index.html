@@ -15,7 +15,7 @@
 }
 #toolbar button {
   z-index: 10;
-  position: relative; /* keep it above absolute panels */
+  position: relative; 
 }
 #toolbar input, #toolbar button {
   padding:7px 12px; border:none; border-radius:4px; font-size:14px;
@@ -86,11 +86,14 @@
 <script type="module"> 
 import * as Y from "https://esm.sh/yjs@13"
 
-// High-DPI scaling
+/* scaling for better resolution  
+dpr = device pixels / css pixels 
+expands the canvas pixels for greater resolution, and then scales coord system accordingly
+*/
 const canvasEl = document.getElementById("mycanvas");
-const ctx = canvasEl.getContext("2d");
+const ctx = canvasEl.getContext("2d"); 
 const dpr = window.devicePixelRatio || 1;
-canvasEl.width = canvasEl.clientWidth * dpr;
+canvasEl.width = canvasEl.clientWidth * dpr; 
 canvasEl.height = canvasEl.clientHeight * dpr;
 ctx.scale(dpr, dpr); 
 
@@ -100,32 +103,40 @@ let roomId = null;
 let userId = null;
 let viewingHistory = false;       // when true, do not send/accept live updates
 let currentPreview = null; // stores the version you're previewing
+let applyingRemoteUpdate = false; // used to prevents cycles
 
-
-
+// helper functions
 function deepClone(obj) { return JSON.parse(JSON.stringify(obj)); }
 function deepEqual(a,b) { return JSON.stringify(a)===JSON.stringify(b); } 
 
-let applyingRemoteUpdate = false;
-
-// Extend LGraph
+// extended class for tracking specific actions
 class LGraphPro extends LGraph {
-  constructor() { super(); this._graph_cache = {}; }
+  constructor() {
+    super(); 
+    this._graph_cache = {}; 
+  }
+  
   emit(...args){ 
-    if(this.events) this.events.emit(...args); }
+    if(this.events) {
+      this.events.emit(...args); 
+    } 
+  }
+
   change(){ 
     super.change(); 
     this.emit("change"); 
     this.checkGraphChange(); 
-}
+  }
   
-    connectionChange(node){ 
-        if(super.connectionChange) super.connectionChange(node); 
-        this.emit("connection_change", node); 
-        this.checkGraphChange(); 
-    }
+  connectionChange(node){ 
+    if(super.connectionChange){ 
+      super.connectionChange(node); 
+    } 
+    this.emit("connection_change", node); 
+    this.checkGraphChange(); 
+  }
   
-    serializeDeep(options={}) {
+  serializeDeep(options={}) {
     const g=this.serialize();
     g.nodes.sort((a,b)=>a.id-b.id);
     if(options.skip_inputs) g.nodes.forEach(x=>x.inputs=[]);
@@ -135,109 +146,77 @@ class LGraphPro extends LGraph {
     if(options.skip_nodes) g.nodes=[];
     return deepClone(g);
   }
+  
   checkGraphChange() {
-    if (applyingRemoteUpdate) return;
+    if (applyingRemoteUpdate) return; // dont emit change socket when updating remote updates
     if (viewingHistory) return; // don't send edits while reviewing history
-    const g = this.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+    const g = this.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:false });
     if (deepEqual(g, this._graph_cache)) return;
     this._graph_cache = g; 
-    console.log("are we here chat");
-
-    //this.emit("graph_change", this.serializeDeep()); 
-    console.log((userId));
     if (!ydoc || !roomId || !userId) return; 
-    console.log((ydoc));
     ymap.set("graph", this.serializeDeep());
     const update = Array.from(Y.encodeStateAsUpdate(ydoc)); 
-    console.log("right before dispatching event");
     document.dispatchEvent(new CustomEvent("graph-update", { detail: update }));
-    //listen_for_change(this.serializeDeep())
-    //document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
   }
-
 }
-
-
 
 // Create graph
 var graph = new LGraphPro();
 var canvas = new LGraphCanvas("#mycanvas", graph); 
 
-
+/*
+code from websocket only iteration (last edit wins)
 function listen_for_change(graphJSON) {
   if (!ydoc || !roomId || !userId) return;
-
-  // Store the whole graph under a single key
   ymap.set("graph", graphJSON);
-
-  // Encode incremental update
   const update = Array.from(Y.encodeStateAsUpdate(ydoc));
-
-  // Send via Socket.io # move this somewhere else 
   document.dispatchEvent(new CustomEvent("graphJSONUpdated", { detail: this.serializeDeep() }));
   socket.emit("graph-update", update);
 }
 
 
 function update_graph(json) {
-    // Temporarily block events
     applyingRemoteUpdate = true;
-
-    // Apply remote JSON to the graph
     graph.configure(json); 
-    // HERE UPDATE 
-
     console.log(json)
-    
-    // Sync cache manually so future local edits are detected
     graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
-
     applyingRemoteUpdate = false;
 }
+*/
 
+// used for applying updates 1) recieving graph update and 2) recieving current version after viewing history
 window.recieve_update = function(arr) {
-  // Apply the Yjs update
-  console.log("OMG WERE HERE")
-  console.log(typeof(arr))
   const update = new Uint8Array(arr);
-  console.log(typeof(update))
   Y.applyUpdate(ydoc, update);
 
-  // Get the latest graph JSON from Yjs
+  // get the latest graph JSON from Yjs pointer
   const graphJSON = ymap.get("graph");
 
   if (graphJSON) {
-    // Update LiteGraph
+    // update pointer to 
     applyingRemoteUpdate = true;
     graph.configure(graphJSON);
     graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
     applyingRemoteUpdate = false;
   }
 }; 
+
+// given a json, applies remote update
 window.temp_remote_update = function(json) {
-  // Temporarily block events
   applyingRemoteUpdate = true;
-
-// Apply remote JSON to the graph
-graph.configure(json); 
-// HERE UPDATE 
-
-console.log(json)
-
-// Sync cache manually so future local edits are detected
-graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
-
-applyingRemoteUpdate = false;
+  graph.configure(json); 
+  graph._graph_cache = graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+  applyingRemoteUpdate = false;
 };
 
-// Wrap sum node
+// demo nodes
 function sum(a,b){ return a+b; }
 LiteGraph.wrapFunctionAsNode("math/sum", sum, ["Number","Number"], "Number");
 
-// Add demo nodes
 var n1 = LiteGraph.createNode("math/sum"); n1.pos=[200,200]; graph.add(n1);
 var n2 = LiteGraph.createNode("math/sum"); n2.pos=[400,200]; graph.add(n2);
 
+/*
 function freezeGraph() {
   const overlay = document.getElementById("overlay");
   overlay.style.display = "block";
@@ -247,42 +226,40 @@ function unfreezeGraph(){
   const overlay = document.getElementById("overlay");
   overlay.style.display = "none";
 }
+*/
 
 const historyBtn = document.getElementById("historyBtn");
-  const historyPanel = document.getElementById("historyPanel");
-  const historyList = document.getElementById("historyList");
+const historyPanel = document.getElementById("historyPanel");
+const historyList = document.getElementById("historyList");
 const restoreButton = document.getElementById("restore");
-  // Toggle panel
-  historyBtn.addEventListener("click", () => {
+
+historyBtn.addEventListener("click", () => {
     if (historyPanel.style.display == "block") {
       // if we're closing the history, reverting to current state 
       let currentPreview = null
       historyPanel.style.display = "none";
-      console.log("historybutton unpressed")
+      console.log("History button Unpressed.")
       document.dispatchEvent(new CustomEvent("getCurrent", {})) 
     }
-    else {
+    else { 
+      // opening history, render the history
       historyPanel.style.display = "block"; 
-
       document.dispatchEvent(new CustomEvent("historyRequest", {}))  
-      
-      console.log("history button pressed");
+      console.log("History button pressed.");
   }
-      // freezeGraph()  
-  });
+});
 
+// restores history request on button click
 restoreButton.addEventListener("click", () => {  
-
   if (currentPreview!= null) { 
     console.log(currentPreview);
-    console.log("okkk restoringg")
     historyPanel.style.display = "none";
     document.dispatchEvent(new CustomEvent("restore-version", { detail: currentPreview }))  
   }
 
 })
 
-  // Function to render versions
+  // function to render versions (same as collab list)
   window.renderHistory = function(versions) {
     historyList.innerHTML = "";
     versions.forEach((version, index) => {
@@ -298,32 +275,23 @@ restoreButton.addEventListener("click", () => {
     });
   }
 
-  window.restore = function(graphJSON) {
-  applyingRemoteUpdate = true;
-  
-  // Update LiteGraph
-  canvas.graph.clear();
-  canvas.graph.configure(graphJSON);
-
-  // Sync Yjs
-  ymap.set("graph", deepClone(graphJSON));
-
-  // Update cache so edits are detected
-  canvas.graph._graph_cache = canvas.graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
-
-  applyingRemoteUpdate = false;
+// restores history
+window.restore = function(graphJSON) {
+    applyingRemoteUpdate = true;
+    canvas.graph.clear();
+    canvas.graph.configure(graphJSON);
+    ymap.set("graph", deepClone(graphJSON));
+    canvas.graph._graph_cache = canvas.graph.serializeDeep({ skip_inputs:true, skip_outputs:true, skip_properties:true });
+    applyingRemoteUpdate = false;
 };
 
-
-// --- BUTTONS ---
-
+// join button
 document.getElementById("joinRoomBtn").addEventListener("click", ()=>{
   userId = document.getElementById("userId").value.trim();
   roomId = document.getElementById("roomId").value.trim();
   if(!userId || !roomId) { alert("Enter User ID and Room ID"); return; }
 
   alert(`You are now joining room ${roomId} as user ${userId}`);
-  // TODO: connect to WebSocket / Yjs for collaborative editing
 });
 </script>
 <script src="app.js"></script>

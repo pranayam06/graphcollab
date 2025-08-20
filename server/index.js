@@ -10,8 +10,8 @@ const io = new Server(httpServer, {
 // Track collaborators per room in-memory (optional, Redis can also store this)
 const roomUsers = {};
 const roomGraphs = {};
-const roomHistory = {}; // roomId -> array of { timestamp, snapshot, updates }
-const SNAPSHOT_INTERVAL = 5; // store a snapshot every N updates
+const roomHistory = {}; // roomId: { timestamp, snapshot, updates }
+const SNAPSHOT_INTERVAL = 5; // store a snapshot every n updates
 const starterJSON = {
     "last_node_id": 2,
     "last_link_id": 0,
@@ -98,7 +98,6 @@ const starterJSON = {
 const roomVersion = {}
 
 io.on("connection", (socket) => { 
-
   console.log(`Client connected: ${socket.id}`);
 
   socket.on("joinRoom", ({ user, room }) => {  
@@ -111,62 +110,54 @@ io.on("connection", (socket) => {
     }
     roomUsers[room].add(user);  
     console.log(roomUsers[room])
-
     if (!roomHistory[room]) {
         roomHistory[room] = [];   //  ensure history exists
       }
-
       if (!roomVersion[room]) {
-        roomVersion[room] = 0;   //  ensure history exists
+        roomVersion[room] = 0;   //  ensure version exists
       }
-
     if (!roomGraphs[room]) {
-        roomGraphs[room] = new Y.Doc();
+        roomGraphs[room] = new Y.Doc(); //  ensure ydoc exists
       }
-      const ydoc = roomGraphs[room];
+    const ydoc = roomGraphs[room];
       
-      // Populate initial graph if empty
-      const ymap = ydoc.getMap("graph");
-      if (!ymap.has("graph")) {
-        ymap.set("graph", starterJSON);
-      }      
-    
+    // initialize graph if empty
+    const ymap = ydoc.getMap("graph");
+    if (!ymap.has("graph")) {
+      ymap.set("graph", starterJSON);
+    }      
+
+    // send as update
     const fullUpdate = Array.from(Y.encodeStateAsUpdate(ydoc));
-    // type fixed 
     socket.emit("graph-update",  fullUpdate);
     
-    // Send collaborators list to everyone in the room 
     io.to(room).emit("collaborators", [...roomUsers[room]]); 
   }); 
 
   /*
-
+  code from initial websocket version
   socket.on("message", ({ user, room, graph }) => { 
     roomGraphs[room] = graph
     socket.to(room).emit("message", { user, graph });
   });  */
 
+  // graph updated by client
   socket.on("graph-update", (update) => { 
-    
     const room = socket.data.room;
     if (!room) return;
     roomVersion[room] += 1
-    
-  
     const ydoc = roomGraphs[room];
     const binaryUpdate = new Uint8Array(update);
     Y.applyUpdate(ydoc, binaryUpdate);
   
-    // Initialize history
+    // initialize history
     if (!roomHistory[room]) roomHistory[room] = [];
   
-    // Store snapshot every N updates
+    // store snapshot every N updates
     const history = roomHistory[room]; 
     const nextVersion = roomVersion[room];
-    console.log(nextVersion)
-    //console.log(history)
   
- // Every SNAPSHOT_INTERVAL, capture full JSON snapshot
+ // every SNAPSHOT_INTERVAL, capture full JSON snapshot
     if ((nextVersion + 1) % SNAPSHOT_INTERVAL === 0) { 
         const graphMap = ydoc.getMap("graph");
         const graph = graphMap.get("graph"); // your JSON object
@@ -176,25 +167,22 @@ io.on("connection", (socket) => {
         snapshot,       // full graph JSON
         timestamp: Date.now(),
         });
-        //console.log("Stored snapshot:", snapshot);
     }
 
-
-
-    // Broadcast to other clients
+    // broadcast to other clients
     socket.to(room).emit("graph-update", update);
   }); 
 
 
+  // request entire history list
   socket.on("historyRequest", () => {  
-    console.log("history requested");
+    console.log("History requested by user ", socket.data.user);
     const history = roomHistory[socket.data.room]
-    console.log(history)
     const list = history.map((h, idx) => ({
       index: idx,
       timestamp: h.timestamp
     })); 
-    console.log(list)
+    console.log("emitting socket list");
     socket.emit("historyList", list);
   });
 
@@ -202,14 +190,14 @@ io.on("connection", (socket) => {
     const room = socket.data.room;
     const history = roomHistory[room];
     if (!history || version >= history.length) return;
-  
-    // Find the closest snapshot at or before the requested version
-    //const snapshotIndex = Math.floor(version / SNAPSHOT_INTERVAL) * SNAPSHOT_INTERVAL;
+
+    // find the version
     const snapshotEntry = history[version];
-  
+
+    // check guard
     if (!snapshotEntry || !snapshotEntry.snapshot) return;
   
-    // Send the JSON snapshot directly
+    // send the JSON snapshot directly
     socket.emit("loadVersionResponse", {
       version,
       graph: snapshotEntry.snapshot,
@@ -217,44 +205,37 @@ io.on("connection", (socket) => {
     });
   });
 
+  // restoring an old version
   socket.on("restore-version", (index) => {  
-    console.log(index)
-    console.log("RESTORINGGGG we r here")
     const room = socket.data.room; 
-    console.log("cp1")
     if (!room || !roomHistory[room]) return;
-    console.log("cp2") 
-    console.log(index)
 
     const history = roomHistory[room];
     const versionData = history[index]; 
-    console.log("cp3")
 
     if (!versionData) return;
-    console.log("cp4")
 
     roomGraphs[room] = new Y.Doc();
     const ydoc = roomGraphs[room];
     const ymap = ydoc.getMap("graph");
     ymap.set("graph", JSON.parse(JSON.stringify(versionData.snapshot))); // deep copy  
 
-  
     console.log(`Restoring version ${index} in room ${room}`);
   
-    // 1. Save the *current* latest graph as its own version before overwriting
+    // save the current latest graph as its own version before overwriting
     const currentLatest = history[history.length - 1];
     history.push({
       snapshot: currentLatest.snapshot, // old state
       timestamp: Date.now(),
     });
   
-    // 2. Append the restored version as a *new* entry
+    // append the restored version as a new entry
     history.push({
       snapshot: versionData.snapshot,
       timestamp: Date.now(),
     });
   
-    // 3. Broadcast restored graph 
+    // broadcast restored graph 
     io.to(room).emit("restoreVersionBroadcast", {
       graph: versionData.snapshot,
       version: history.length - 1, // the new appended index
@@ -262,25 +243,22 @@ io.on("connection", (socket) => {
     });
   });
   
-  
+  // gets the current state on history close
   socket.on("current-state", () => {
     const room = socket.data.room
     const ydoc = roomGraphs[room];
-    // Populate initial graph if empty
+    // initialize graph if empty
     const ymap = ydoc.getMap("graph");
     if (!ymap.has("graph")) {
       ymap.set("graph", starterJSON);
     }      
-  
     const fullUpdate = Array.from(Y.encodeStateAsUpdate(ydoc)); 
-
-    socket.emit("graph-current-state",  fullUpdate);  })
-  
+    socket.emit("graph-current-state",  fullUpdate);  
+  })
 
   socket.on("disconnecting", () => {
     const room = socket.data.room;
   if (!room) return; // socket never joined a room
-
   roomUsers[room].delete(socket.data.user);
   io.to(room).emit("collaborators", { roomId: room, users: [...roomUsers[room]] });
   });
@@ -289,5 +267,3 @@ io.on("connection", (socket) => {
 httpServer.listen(3500, () => {
   console.log("Server running on port 3500");
 });
-
-  

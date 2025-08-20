@@ -3,20 +3,11 @@ const socket = io('ws://localhost:3500');
 document.getElementById("joinRoomBtn").addEventListener("click", () => {
     const userVal = document.getElementById('userId').value.trim();
     const roomVal = document.getElementById('roomId').value.trim();
-    //document.getElementById("mycanvas").style.display = "block";
     document.getElementById("collaborators").style.display = "block";
 
     if (!userVal || !roomVal) { alert("Enter User ID and Room ID"); return; }
-
-    // Join the room
     socket.emit("joinRoom", { user: userVal, room: roomVal });
-
-    // Store for later graph updates
     socket.data = { user: userVal, room: roomVal };
-
-    // Optionally, show canvas now
-
-    //document.getElementById("mycanvas").style.display = "block";
 });
 
 // Listen for graph updates
@@ -26,11 +17,13 @@ document.addEventListener("graphJSONUpdated", (e) => {
     socket.emit('message', { user: socket.data.user, room: socket.data.room, graph: json });
 });
 
+// listen for current state on returning from history
 document.addEventListener("getCurrent", (e) => { 
     console.log("looking for the current state")
     socket.emit("current-state");
 })
 
+// loading versions when viewing history
 document.addEventListener("loadVersion", (e) => {
     const idx = e.detail
     console.log("loading version ", idx) 
@@ -38,16 +31,20 @@ document.addEventListener("loadVersion", (e) => {
 
 });
 
+// requesting entire history list
 document.addEventListener("historyRequest", (e) => {
     socket.emit('historyRequest')
 }) 
 
+// restoring older version
 document.addEventListener("restore-version", (e) => {
     const index = e.detail 
     console.log("heres the index", index)
     socket.emit("restore-version", index); 
     console.log("restoring version ", index);
 })
+
+// on graph update, send update to server
 document.addEventListener("graph-update", (e) => {
     const update = e.detail; 
     console.log("hello i got the update")
@@ -56,23 +53,27 @@ document.addEventListener("graph-update", (e) => {
   });
 
 
-// Receive updates
+/*
+websocket version
 socket.on("message", (data) => { 
     console.log("socket message received", data);
     update_graph(data.graph);
 }); 
+*/
 
+// SOCKET SIDE 
 
+// recieving graph update from server
 socket.on("graph-update", (update) => {
-    // Apply Yjs update 
     window.recieve_update(update)
   });
 
+// recieving the most recent state of the graph as json
 socket.on("graphState", (graph) => {
     update_graph(graph)
 })
 
-// Receive collaborator list
+// receive collaborator list and update list
 socket.on("collaborators", (users) => {  
     console.log("here")
     const list = document.getElementById("collaboratorsList");
@@ -84,21 +85,23 @@ socket.on("collaborators", (users) => {
     }
 }); 
 
+// recieves graph current state as an update when returning from history 
 socket.on("graph-current-state", (update) => {
     window.recieve_update(update)
 })
 
-
+// loads version upon viewing history
 socket.on("loadVersionResponse", ({ version, graph, timestamp }) => {
     console.log("Loaded version", version, "from", new Date(timestamp));
-    
     window.temp_remote_update(graph);
   });
 
+// renders history list
   socket.on("historyList", (list) => {
     window.renderHistory(list);
   })
 
+// restoring version broadcast to everyone
 socket.on("restoreVersionBroadcast", ({ graph, version, timestamp }) => {
   console.log("Version", version, "restored globally from", new Date(timestamp));
   window.restore(graph)
